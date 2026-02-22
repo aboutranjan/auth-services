@@ -42,7 +42,7 @@ jobs:
       - name: Push Docker image to Nexus
         run: |
           docker push nexus.ranjanlimited.com:5000/auth-services:${{ github.sha }}
-          docker push nexus.ranjanlimited.com/auth-services:latest
+          docker push nexus.ranjanlimited.com:5000/auth-services:latest
       
       - name: Push JAR artifact to Nexus Maven Repository
         if: github.ref == 'refs/heads/main'
