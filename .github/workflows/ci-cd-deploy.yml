@@ -26,7 +26,12 @@ jobs:
       
       - name: Build with Maven
         run: mvn clean package
-      
+
+      - name: Allow insecure registry
+        run: |
+              echo '{ "insecure-registries": ["*.ranjanlimited.com:5000"] }' | sudo tee /etc/docker/daemon.json
+              sudo systemctl restart docker
+    
       - name: Build Docker image
         run: |
           docker build -t nexus.ranjanlimited.com:5000/auth-services:${{ github.sha }} .
