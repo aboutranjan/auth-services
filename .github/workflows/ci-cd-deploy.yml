@@ -27,28 +27,36 @@ jobs:
       - name: Build with Maven
         run: mvn clean package
 
-      - name: Allow insecure registry
-        run: |
-              echo '{ "insecure-registries": ["*.ranjanlimited.com:5000"] }' | sudo tee /etc/docker/daemon.json
-              sudo systemctl restart docker
-    
-      - name: Build Docker image
-        run: |
-          docker build -t nexus.ranjanlimited.com:5000/auth-services:${{ github.sha }} .
-          docker build -t nexus.ranjanlimited.com:5000/auth-services:latest .
-      
+      # --- FIX: Use Buildx instead of modifying Docker daemon
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
       - name: Log in to Nexus Docker Registry
         uses: docker/login-action@v2
         with:
           registry: nexus.ranjanlimited.com:5000
           username: ${{ secrets.NEXUS_DOCKER_USERNAME }}
           password: ${{ secrets.NEXUS_DOCKER_PASSWORD }}
-      
-      - name: Push Docker image to Nexus
-        run: |
-          docker push nexus.ranjanlimited.com:5000/auth-services:${{ github.sha }}
-          docker push nexus.ranjanlimited.com:5000/auth-services:latest
-      
+
+      - name: Build and Push Docker images (insecure registry)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            nexus.ranjanlimited.com:5000/auth-services:${{ github.sha }}
+            nexus.ranjanlimited.com:5000/auth-services:latest
+          provenance: false
+          sbom: false
+          # Critical: allows pushing to insecure HTTP registry
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          outputs: type=registry
+          insecure: true
+
       - name: Push JAR artifact to Nexus Maven Repository
         if: github.ref == 'refs/heads/main'
         env:
@@ -66,7 +74,7 @@ jobs:
             -DrepositoryId=nexus-releases \
             -Dusername=$NEXUS_USERNAME \
             -Dpassword=$NEXUS_PASSWORD
-      
+
       - name: Deploy to Hostinger VPS
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
@@ -83,17 +91,13 @@ jobs:
           
           ssh -i ~/.ssh/deploy_key $HOSTINGER_USER@$HOSTINGER_HOST << 'EOF'
             set -e
-            echo "Logging in to Nexus Docker Registry..."
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin nexus.ranjanlimited.com
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin nexus.ranjanlimited.com:5000
             
-            echo "Pulling latest Docker image..."
             docker pull nexus.ranjanlimited.com:5000/auth-services:latest
             
-            echo "Stopping existing container..."
             docker stop auth-services || true
             docker rm auth-services || true
             
-            echo "Starting new container..."
             docker run -d \
               --name auth-services \
               --restart always \
@@ -101,7 +105,6 @@ jobs:
               -e SPRING_PROFILES_ACTIVE=prod \
               nexus.ranjanlimited.com:5000/auth-services:latest
             
-            echo "Deployment successful!"
             docker ps | grep auth-services
           EOF
           
