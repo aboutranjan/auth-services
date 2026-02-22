@@ -2,12 +2,9 @@ name: Build, Package, and Deploy
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [ main, develop ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build:
@@ -16,31 +13,29 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
-      
+
       - name: Build with Maven
         run: mvn clean package
 
-      # --- FIX: Use Buildx instead of modifying Docker daemon
+      # --- Buildx for insecure HTTP registry ---
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          install: true
 
-      - name: Log in to Nexus Docker Registry
+      - name: Log in to Nexus Registry (HTTP)
         uses: docker/login-action@v2
         with:
-          registry: nexus.ranjanlimited.com:5000
+          registry: nexus.ranjanlimited.com:5000   # IMPORTANT
           username: ${{ secrets.NEXUS_DOCKER_USERNAME }}
           password: ${{ secrets.NEXUS_DOCKER_PASSWORD }}
 
-      - name: Build and Push Docker images (insecure registry)
+      - name: Build and Push Docker images
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -51,10 +46,7 @@ jobs:
             nexus.ranjanlimited.com:5000/auth-services:latest
           provenance: false
           sbom: false
-          # Critical: allows pushing to insecure HTTP registry
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-          outputs: type=registry
+          # CRITICAL: allow HTTP
           insecure: true
 
       - name: Push JAR artifact to Nexus Maven Repository
@@ -92,20 +84,18 @@ jobs:
           ssh -i ~/.ssh/deploy_key $HOSTINGER_USER@$HOSTINGER_HOST << 'EOF'
             set -e
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin nexus.ranjanlimited.com:5000
-            
+
             docker pull nexus.ranjanlimited.com:5000/auth-services:latest
-            
+
             docker stop auth-services || true
             docker rm auth-services || true
-            
+
             docker run -d \
               --name auth-services \
               --restart always \
               -p 8080:8080 \
               -e SPRING_PROFILES_ACTIVE=prod \
               nexus.ranjanlimited.com:5000/auth-services:latest
-            
-            docker ps | grep auth-services
           EOF
           
           rm -f ~/.ssh/deploy_key
