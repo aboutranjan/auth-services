@@ -31,7 +31,7 @@ jobs:
       - name: Log in to Nexus Registry (HTTP)
         uses: docker/login-action@v2
         with:
-          registry: nexus.ranjanlimited.com:5000   # IMPORTANT
+          registry: nexus.ranjanlimited.com   # IMPORTANT
           username: ${{ secrets.NEXUS_DOCKER_USERNAME }}
           password: ${{ secrets.NEXUS_DOCKER_PASSWORD }}
 
@@ -42,8 +42,8 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            nexus.ranjanlimited.com:5000/auth-services:${{ github.sha }}
-            nexus.ranjanlimited.com:5000/auth-services:latest
+            nexus.ranjanlimited.com/auth-services:${{ github.sha }}
+            nexus.ranjanlimited.com/auth-services:latest
           provenance: false
           sbom: false
           # CRITICAL: allow HTTP
@@ -83,9 +83,9 @@ jobs:
           
           ssh -i ~/.ssh/deploy_key $HOSTINGER_USER@$HOSTINGER_HOST << 'EOF'
             set -e
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin nexus.ranjanlimited.com:5000
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin nexus.ranjanlimited.com
 
-            docker pull nexus.ranjanlimited.com:5000/auth-services:latest
+            docker pull nexus.ranjanlimited.com/auth-services:latest
 
             docker stop auth-services || true
             docker rm auth-services || true
@@ -95,7 +95,7 @@ jobs:
               --restart always \
               -p 8080:8080 \
               -e SPRING_PROFILES_ACTIVE=prod \
-              nexus.ranjanlimited.com:5000/auth-services:latest
+              nexus.ranjanlimited.com/auth-services:latest
           EOF
           
           rm -f ~/.ssh/deploy_key
