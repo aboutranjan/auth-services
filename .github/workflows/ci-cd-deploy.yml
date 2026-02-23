@@ -58,14 +58,13 @@ jobs:
           mvn deploy:deploy-file \
             -Durl=https://nexus.ranjanlimited.com/repository/maven-releases/ \
             -Drepository=nexus-releases \
-            -Dfile=target/auth-services-1.0-SNAPSHOT.jar \
-            -DgroupId=com.ranjanlimited \
+            -Dfile="target/auth-services-1.1.1-SNAPSHOT.jar" \
+            -DgroupId="com.ranjanlimited" \
             -DartifactId=auth-services \
-            -Dversion=${{ github.sha }} \
+            -Dversion="1.1.1" \
             -Dpackaging=jar \
             -DrepositoryId=nexus-releases \
-            -Dusername=$NEXUS_USERNAME \
-            -Dpassword=$NEXUS_PASSWORD
+            -Dusername=$NEXUS_USERNAME
 
       - name: Deploy to Hostinger VPS
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
